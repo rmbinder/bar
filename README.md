@@ -13,7 +13,9 @@ bar must be in a subfolder of root (on the same level as e.g. adm_plugins). The 
 The program is called via the command line with these parameters:
 
 mode=backup  or mode=restore
+
 source=sql or source=web or source=all
+
 show=list (optional)
 
 Example:
