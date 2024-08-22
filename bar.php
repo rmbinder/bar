@@ -7,9 +7,9 @@
  * 
  * Bar is a program for Admidio, but not a classic plugin. It backs up and restores an Admidio SQL database and its associated web space.
  *
- * Version: 1.0
+ * Version: 1.1-Beta1
  *
- * Date: 26.04.2023
+ * Date: 19.08.2024
  *
  * Compatible with Admidio version 4.1
  * 
@@ -42,14 +42,23 @@
 */
 
 include_once('config.php');
+include_once(__DIR__ . '/../adm_my_files/config.php');              //die Admidio Konfigurationsdatei einlesen
+include_once(__DIR__ . '/mysqldump-php-2.10/src/Ifsnop/Mysqldump/Mysqldump.php');
+
+ini_set('max_execution_time', 600);
+    ini_set('memory_limit','1024M');
 
 $getMode   = checkVariableIsValid($_GET, 'mode',   array('backup', 'restore'));
-$getSource = checkVariableIsValid($_GET, 'source', array('sql', 'web', 'all'));
+$getSource = checkVariableIsValid($_GET, 'source', array('sql', 'web', 'all', 'admidio'));
 $getShow   = checkVariableIsValid($_GET, 'show',   array('list'));
 
-if ($getMode === 'ERROR' || $getSource === 'ERROR' || $getShow === 'ERROR'
-    || ($getMode === '' && $getSource === '' && $getShow === '')
-    || ($getMode === '' XOR $getSource === ''))
+if (($getMode   === 'ERROR' 
+    || $getSource  === 'ERROR' 
+    || $getShow    === 'ERROR'
+    || ($getMode   === '' && $getSource === '' && $getShow === '')
+    || ($getMode   === '' XOR $getSource === '')
+    || ($getSource === 'admidio' && $getMode === 'backup'))
+    && !isset($_POST['SelectedBackupFile']))
 {
     echo '<h4>Script aborted</h4>';
     echo 'No or incorrect parameters were passed!';
@@ -58,9 +67,11 @@ if ($getMode === 'ERROR' || $getSource === 'ERROR' || $getShow === 'ERROR'
     echo '<br>';
     echo '- mode=backup or mode=restore';
     echo '<br>';
-    echo '- source=sql or source=web or source=all';
+    echo '- source=sql or source=web or source=all or source=admidio';
     echo '<br>';
     echo '- show=list (optional)';
+    echo '<br><br>';
+    echo 'Attention: If source=admidio, then mode can only be restore';
     echo '<br><br>';
     echo 'Examples:';
     echo '<br>';
@@ -69,7 +80,59 @@ if ($getMode === 'ERROR' || $getSource === 'ERROR' || $getShow === 'ERROR'
     echo 'or';
     echo '<br>';
     echo 'e.g.: .../bar.php?mode=restore&source=web';
+    echo '<br>';
+    echo 'or';
+    echo '<br>';
+    echo 'e.g.: .../bar.php?mode=restore&source=admidio';
     die;
+}
+
+if ($getSource === 'admidio')
+{
+    $backupAbsolutePath = __DIR__ . '/../adm_my_files/backup/';
+    $existingBackupFiles = array();
+    
+    // create a list with all valid files in the backup folder
+    $dirHandle = @opendir($backupAbsolutePath);
+    if ($dirHandle)
+    {
+        while (($entry = readdir($dirHandle)) !== false)
+        {
+            if($entry === '.' || $entry === '..')
+            {
+                continue;
+            }
+            $existingBackupFiles[$entry] = $entry;
+            
+        }
+        closedir($dirHandle);
+    }
+    
+    if (sizeof($existingBackupFiles) > 0)
+    {
+        echo '<br>';
+        echo 'Select the backup file to restore:';
+        echo '<br><br>';
+        echo '<form action="bar.php" method="post">
+                <select name="SelectedBackupFile">';
+        
+        foreach ($existingBackupFiles as $value => $description) {
+            echo '<option value="'.$value.' ">'.$description.'</option>';
+        }
+        echo '</select>
+                <br>
+                <br>
+                <button type="submit">Restore</button>
+            </form>';
+    }
+    else
+    {
+        echo '<br>';
+        echo 'There are no backup files in the Admidio backup directory.';
+        echo '<br>';
+        echo '<h4>Script aborted</h4>';
+        //die;
+    }
 }
 
 //den Plugin-Verzeichnisnamen auslesen
@@ -86,11 +149,17 @@ if (file_exists($zipFile))
     $zipfileExists = true;
 }
 
-// den Namen der SQL-Datei zusammensetzen
+// den Pfad zur SQL-Datei bestimmen und den Namen zusammensetzen
 $dumpfile = $backupFileName .'_db.sql';
-
+$backupAbsolutePath = '';
+if (isset($_POST['SelectedBackupFile']))
+{
+    $dumpfile = trim($_POST['SelectedBackupFile']);
+    $backupAbsolutePath = __DIR__ . '/../adm_my_files/backup/'; 
+}
+    
 $dumpFileExists = false;
-if (file_exists($dumpfile))
+if (file_exists($backupAbsolutePath.$dumpfile))
 {
     $dumpFileExists = true;
 }
@@ -116,9 +185,6 @@ if ($getShow === 'list')
     }
     echo '<br>';
 }
-
-ini_set('max_execution_time', 600);
-ini_set('memory_limit','1024M');
 
 if($getSource === 'web' || $getSource === 'all')               // Source webspace or, if all is selected (webspace and sql)
 {
@@ -237,12 +303,8 @@ if($getSource === 'web' || $getSource === 'all')               // Source webspac
     chdir($pluginFolder.DIRECTORY_SEPARATOR);
 }
 
-if($getSource === 'sql' || $getSource === 'all')                                   // // Source sql or, if all is selected (webspace and sql)
+if($getSource === 'sql' || $getSource === 'all' || isset($_POST['SelectedBackupFile']))                                   // // Source sql or, if all is selected (webspace and sql)
 {
-
-    include_once(__DIR__ . '/../adm_my_files/config.php');              //die Admidio Konfigurationsdatei einlesen
-    include_once(__DIR__ . '/mysqldump-php-2.10/src/Ifsnop/Mysqldump/Mysqldump.php');
-    
     if($getMode === 'backup')           // SQL: backup
     {
         $dump = new Ifsnop\Mysqldump\Mysqldump("mysql:host=$g_adm_srv;dbname=$g_adm_db", $g_adm_usr, $g_adm_pw);
@@ -291,36 +353,47 @@ if($getSource === 'sql' || $getSource === 'all')                                
             $sql = 'SET FOREIGN_KEY_CHECKS=1' ;
             $mysqli->query($sql);
             
+            $data = array();
+            
+            $fileextension = strrchr($dumpfile, '.');
+            if ($fileextension == '.bz2')                    //OUTPUT_COMPRESSION_TYPE = 'bzip2'
+            {
+                $fp = bzopen($backupAbsolutePath.$dumpfile, 'r');
+                while ($data[] = fgets($fp));
+            }
+            elseif($fileextension == '.gz')                  //OUTPUT_COMPRESSION_TYPE = 'gzip'
+            {
+                $data = gzfile($backupAbsolutePath.$dumpfile);
+            }
+            else                                            //OUTPUT_COMPRESSION_TYPE = none = pure sql
+            {
+                $data = file($backupAbsolutePath.$dumpfile);
+            }
+
             // Temporary variable, used to store current query
             $templine = '';
-            $handle = fopen($dumpfile , 'r');
-            if ($handle) {
-                while (!feof($handle)) { // Loop through each line
-                    $line = trim(fgets($handle));
-                    // Skip it if it's a comment
-                    if (substr($line, 0, 2) == '--' || $line == '') {
-                        continue;
-                    }
-                    
-                    // Add this line to the current segment
-                    $templine .= $line;
-                    
-                    // If it has a semicolon at the end, it's the end of the query
-                    if (substr(trim($line), -1, 1) == ';') {
-                        // Perform the query
-                        $mysqli->query($templine) or print('Error performing query "' . $templine . '":' . $mysqli->error . PHP_EOL);
-                        // Reset temp variable to empty
-                        $templine = '';
-                    }
-                }
-                fclose($handle);
-                echo 'The SQL file was imported successfully.';
-            }
-            else
+            
+            // Loop through each line
+            foreach ($data as $line)
             {
-                echo 'Error opening SQL file.';
+                // Skip it if it's a comment
+                if (substr($line, 0, 2) == '--' || $line == '') {
+                    continue;
+                }
+                
+                // Add this line to the current segment
+                $templine .= $line;
+                
+                // If it has a semicolon at the end, it's the end of the query
+                if (substr(trim($line), -1, 1) == ';')
+                {
+                    // Perform the query
+                    $mysqli->query($templine) or print('Error performing query "' . $templine . '":' . $mysqli->error . PHP_EOL);
+                    // Reset temp variable to empty
+                    $templine = '';
+                }
             }
-            $mysqli->close();
+            echo 'The SQL file was imported successfully.';
         }
         else
         {
