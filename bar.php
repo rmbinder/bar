@@ -9,7 +9,7 @@
  *
  * Version: 1.1-Beta1
  *
- * Date: 19.08.2024
+ * Date: 23.08.2024
  *
  * Compatible with Admidio version 4.1
  * 
@@ -19,15 +19,19 @@
  * 
  * The program is called via the command line with the following parameters:
  * 
- * mode=backup  or mode=restore
- * source=sql or source=web or source=all
- * show=list (optional)
+ * mode=show or mode=backup or mode=restore
+ * source=sql or source=web or source=sql_web or source=admidio
+ *
+ * When using mode=backup or mode=restore, a source must be specified via source=
+ * The source source=admidio can only be used with mode=restore.
  * 
  * Example:
  *
- * ...bar.php?mode=restore&source=sql
+ * ...bar.php?mode=show
  * or
- * ...bar.php?mode=backup&source=all
+ * ...bar.php?mode=backup&source=sql
+ * or
+ * ...bar.php?mode=restore&source=admidio
  * 
  * Backup files:
  * 
@@ -46,80 +50,81 @@ include_once(__DIR__ . '/../adm_my_files/config.php');              //die Admidi
 include_once(__DIR__ . '/mysqldump-php-2.10/src/Ifsnop/Mysqldump/Mysqldump.php');
 
 ini_set('max_execution_time', 600);
-    ini_set('memory_limit','1024M');
+ini_set('memory_limit','1024M');
 
-$getMode   = checkVariableIsValid($_GET, 'mode',   array('backup', 'restore'));
-$getSource = checkVariableIsValid($_GET, 'source', array('sql', 'web', 'all', 'admidio'));
-$getShow   = checkVariableIsValid($_GET, 'show',   array('list'));
+$getMode   = checkVariableIsValid($_GET, 'mode',   array('show', 'backup', 'restore'));
+$getSource = checkVariableIsValid($_GET, 'source', array('sql', 'web', 'sql_web', 'admidio'));
 
-if (($getMode   === 'ERROR' 
-    || $getSource  === 'ERROR' 
-    || $getShow    === 'ERROR'
-    || ($getMode   === '' && $getSource === '' && $getShow === '')
-    || ($getMode   === '' XOR $getSource === '')
-    || ($getSource === 'admidio' && $getMode === 'backup'))
+echo '<h4>bar</h4>';
+echo '(b)ackup (a)nd (r)estore';
+echo '<br><br>';
+echo 'bar backs up and restores an Admidio SQL database and its associated web space';
+echo '<br><br>';
+echo '*****************************************************************';
+echo '<br>';
+
+if ((  $getMode   === 'ERROR' 
+    || $getSource === 'ERROR' 
+    || $getMode   === '' 
+    || ($getMode  === 'show' && $getSource !== '')
+    || ($getMode  === 'restore' && $getSource === '')
+    || ($getMode  === 'backup' && ($getSource === '' || $getSource === 'admidio')))
     && !isset($_POST['SelectedBackupFile']))
 {
     echo '<h4>Script aborted</h4>';
     echo 'No or incorrect parameters were passed!';
     echo '<br><br>';
-    echo 'Required parameters:';
+    echo 'Possible parameters:';
     echo '<br>';
-    echo '- mode=backup or mode=restore';
+    echo '- mode=show or mode=backup or mode=restore';
     echo '<br>';
-    echo '- source=sql or source=web or source=all or source=admidio';
+    echo '- source=sql or source=web or source=sql_web or source=admidio';
     echo '<br>';
-    echo '- show=list (optional)';
-    echo '<br><br>';
-    echo 'Attention: If source=admidio, then mode can only be restore';
+    echo '(Attention: source=admidio can only be used with mode=restore)';
     echo '<br><br>';
     echo 'Examples:';
     echo '<br>';
-    echo 'e.g.: .../bar.php?mode=backup&source=sql';
+    echo '.../bar.php?mode=show';
     echo '<br>';
-    echo 'or';
+    echo '.../bar.php?mode=backup&source=sql';
     echo '<br>';
-    echo 'e.g.: .../bar.php?mode=restore&source=web';
+    echo '.../bar.php?mode=backup&source=sql_web';
     echo '<br>';
-    echo 'or';
-    echo '<br>';
-    echo 'e.g.: .../bar.php?mode=restore&source=admidio';
+    echo '.../bar.php?mode=restore&source=admidio';
     die;
 }
 
+$backupAbsolutePath = __DIR__ . '/../adm_my_files/backup/';
+$existingBackupFiles = array();
+    
+// create a list with all valid files in the backup folder
+$dirHandle = @opendir($backupAbsolutePath);
+if ($dirHandle)
+{
+    while (($entry = readdir($dirHandle)) !== false)
+    {
+        if($entry === '.' || $entry === '..')
+        {
+            continue;
+        }
+        $existingBackupFiles[$entry] = $entry;   
+    }
+    closedir($dirHandle);
+}
+    
 if ($getSource === 'admidio')
 {
-    $backupAbsolutePath = __DIR__ . '/../adm_my_files/backup/';
-    $existingBackupFiles = array();
-    
-    // create a list with all valid files in the backup folder
-    $dirHandle = @opendir($backupAbsolutePath);
-    if ($dirHandle)
-    {
-        while (($entry = readdir($dirHandle)) !== false)
-        {
-            if($entry === '.' || $entry === '..')
-            {
-                continue;
-            }
-            $existingBackupFiles[$entry] = $entry;
-            
-        }
-        closedir($dirHandle);
-    }
-    
     if (sizeof($existingBackupFiles) > 0)
     {
-        echo '<br>';
-        echo 'Select the backup file to restore:';
-        echo '<br><br>';
+        echo '<h4>Select the backup file to restore:</h4>';
         echo '<form action="bar.php" method="post">
                 <select name="SelectedBackupFile">';
         
-        foreach ($existingBackupFiles as $value => $description) {
+        foreach ($existingBackupFiles as $value => $description) 
+        {
             echo '<option value="'.$value.' ">'.$description.'</option>';
         }
-        echo '</select>
+        echo '  </select>
                 <br>
                 <br>
                 <button type="submit">Restore</button>
@@ -131,7 +136,6 @@ if ($getSource === 'admidio')
         echo 'There are no backup files in the Admidio backup directory.';
         echo '<br>';
         echo '<h4>Script aborted</h4>';
-        //die;
     }
 }
 
@@ -164,8 +168,10 @@ if (file_exists($backupAbsolutePath.$dumpfile))
     $dumpFileExists = true;
 }
 
-if ($getShow === 'list')
+if ($getMode === 'show')
 {
+    echo '<h4>bar backup files:</h4>';
+    
     if ($zipfileExists)
     {
         echo 'File ' .$zipFile. ' ('.date('d.m.Y - H:m', filemtime($zipFile)) .') exists';
@@ -175,6 +181,7 @@ if ($getShow === 'list')
         echo 'File ' .$zipFile  . '  does not exist';
     }
     echo '<br>';
+    
     if ($dumpFileExists)
     {
         echo 'File ' .$dumpfile. ' ('.date('d.m.Y - H:m', filemtime($dumpfile)) .') exists';
@@ -184,9 +191,23 @@ if ($getShow === 'list')
         echo 'File ' .$dumpfile . ' does not exist';
     }
     echo '<br>';
+    
+    if (sizeof($existingBackupFiles) > 0)
+    {
+        echo '<h4>admidio backup files:</h4>';
+        foreach ($existingBackupFiles as $value => $description) 
+        {
+            echo $description;
+            echo '<br>';
+        }
+    }
+    else
+    {
+        echo 'There are no backup files in the Admidio backup directory.';
+    }
 }
 
-if($getSource === 'web' || $getSource === 'all')               // Source webspace or, if all is selected (webspace and sql)
+if ($getSource === 'web' || $getSource === 'sql_web')               // Source webspace or, if sql_web is selected: sql and webspace
 {
     // nach root wechseln (ZIP-Datei kann dadurch mit relativen Pfaden erzeugt werden)
     chdir('..'. DIRECTORY_SEPARATOR);
@@ -298,12 +319,11 @@ if($getSource === 'web' || $getSource === 'all')               // Source webspac
             echo 'Error: ZIP archive does not exist.';
             echo '<br>';
         }
-        
     }
     chdir($pluginFolder.DIRECTORY_SEPARATOR);
 }
 
-if($getSource === 'sql' || $getSource === 'all' || isset($_POST['SelectedBackupFile']))                                   // // Source sql or, if all is selected (webspace and sql)
+if ($getSource === 'sql' || $getSource === 'sql_web' || isset($_POST['SelectedBackupFile']))                            // Source sql or, if sql_web is selected: sql and webspace
 {
     if($getMode === 'backup')           // SQL: backup
     {
