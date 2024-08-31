@@ -9,7 +9,7 @@
  *
  * Version: 1.1
  *
- * Date: 31.08.2024
+ * Date: 01.09.2024
  *
  * Compatible with Admidio version 4.1
  * 
