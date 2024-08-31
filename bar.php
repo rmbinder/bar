@@ -7,9 +7,9 @@
  * 
  * Bar is a program for Admidio, but not a classic plugin. It backs up and restores an Admidio SQL database and its associated web space.
  *
- * Version: 1.1-Beta1
+ * Version: 1.1
  *
- * Date: 23.08.2024
+ * Date: 31.08.2024
  *
  * Compatible with Admidio version 4.1
  * 
@@ -40,7 +40,7 @@
  * 
  * @inspired by @url http://andreknieriem.de
  *
- * @copyright 2004-2023 rmb
+ * @copyright 2004-2024 rmb
  * @license https://www.gnu.org/licenses/gpl-2.0.html GNU General Public License v2.0 only
  ***********************************************************************************************
 */
@@ -80,7 +80,7 @@ if ((  $getMode   === 'ERROR'
     echo '<br>';
     echo '- source=sql or source=web or source=sql_web or source=admidio';
     echo '<br>';
-    echo '(Attention: source=admidio can only be used with mode=restore)';
+    echo '(Attention: source=admidio restores a backup created with Admidio. It can only be used in conjunction with mode=restore)';
     echo '<br><br>';
     echo 'Examples:';
     echo '<br>';
@@ -154,18 +154,25 @@ if (file_exists($zipFile))
 }
 
 // den Pfad zur SQL-Datei bestimmen und den Namen zusammensetzen
-$dumpfile = $backupFileName .'_db.sql';
 $backupAbsolutePath = '';
+
+$dumpFile = $backupFileName .'_db.sql';
+$sqlFile = $dumpFile;
+if ($sqlCompression)
+{
+    $sqlFile = $dumpFile.'.gz';
+}
+
 if (isset($_POST['SelectedBackupFile']))
 {
-    $dumpfile = trim($_POST['SelectedBackupFile']);
+    $sqlFile = trim($_POST['SelectedBackupFile']);
     $backupAbsolutePath = __DIR__ . '/../adm_my_files/backup/'; 
 }
     
-$dumpFileExists = false;
-if (file_exists($backupAbsolutePath.$dumpfile))
+$sqlFileExists = false;
+if (file_exists($backupAbsolutePath.$sqlFile))
 {
-    $dumpFileExists = true;
+    $sqlFileExists = true;
 }
 
 if ($getMode === 'show')
@@ -182,13 +189,13 @@ if ($getMode === 'show')
     }
     echo '<br>';
     
-    if ($dumpFileExists)
+    if ($sqlFileExists)
     {
-        echo 'File ' .$dumpfile. ' ('.date('d.m.Y - H:m', filemtime($dumpfile)) .') exists';
+        echo 'File ' .$sqlFile. ' ('.date('d.m.Y - H:m', filemtime($sqlFile)) .') exists';
     }
     else
     {
-        echo 'File ' .$dumpfile . ' does not exist';
+        echo 'File ' .$sqlFile. ' does not exist';
     }
     echo '<br>';
     
@@ -203,7 +210,7 @@ if ($getMode === 'show')
     }
     else
     {
-        echo 'There are no backup files in the Admidio backup directory.';
+        echo 'There are no backup files in the Admidio backup directory';
     }
 }
 
@@ -237,28 +244,28 @@ if ($getSource === 'web' || $getSource === 'sql_web')               // Source we
         {
             $folder = $folder . DIRECTORY_SEPARATOR;
             
-            // Gehe durch die Ordner und f�ge alles dem Archiv hinzu
+            // Gehe durch die Ordner und füge alles dem Archiv hinzu
             $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($folder));
             
             foreach ($iterator as $key=>$value)
             {
                 if(!is_dir($key))
                 { // wenn es kein ordner sondern eine datei ist
-                    // echo $key . " _ _ _ _Datei wurde �bernommen</br>";
+                    // echo $key . " _ _ _ _Datei wurde übernommen</br>";
                     $zip->addFile(realpath($key), $key) or die ('ERROR: Cannot attach file: '. $key);
                     $fc++;
                     
                 }
                 elseif (count(scandir($key)) <= 2)
                 { // der ordner ist bis auf . und .. leer
-                    // echo $key . " _ _ _ _Leerer Ordner wurde �bernommen</br>";
+                    // echo $key . " _ _ _ _Leerer Ordner wurde übernommen</br>";
                     $zip->addEmptyDir(substr($key, -1*strlen($key),strlen($key)-1));
                     $dc++;
                     
                 }
                 elseif ((substr($key, -2) === '/.') || (substr($key, -2) === '\.'))
                 { // ordner .
-                    $dc++; // nur f�r den bericht am ende
+                    $dc++; // nur für den bericht am ende
                     
                 }
                 elseif ((substr($key, -3) === '/..') || (substr($key, -3) === '\..'))
@@ -328,13 +335,22 @@ if ($getSource === 'sql' || $getSource === 'sql_web' || isset($_POST['SelectedBa
     if($getMode === 'backup')           // SQL: backup
     {
         $dump = new Ifsnop\Mysqldump\Mysqldump("mysql:host=$g_adm_srv;dbname=$g_adm_db", $g_adm_usr, $g_adm_pw);
-        $dump->start($dumpfile);
+        $dump->start($dumpFile);
         
-        echo 'The SQL file was created successfully.';
+        if ($sqlCompression)
+        {
+            compress($dumpFile, $sqlFile);
+            unlink($dumpFile);
+            echo 'The SQL archive file was created successfully.';
+        }
+        else 
+        {
+            echo 'The SQL file was created successfully.';
+        }
     }
     else                                // SQL: restore
     {
-        if ($dumpFileExists)
+        if ($sqlFileExists)
         {
             error_reporting(E_ALL);
             
@@ -375,23 +391,31 @@ if ($getSource === 'sql' || $getSource === 'sql_web' || isset($_POST['SelectedBa
             
             $data = array();
             
-            $fileextension = strrchr($dumpfile, '.');
+            $fileextension = strrchr($sqlFile, '.');
             if ($fileextension == '.bz2')                    //OUTPUT_COMPRESSION_TYPE = 'bzip2'
             {
-                $fp = bzopen($backupAbsolutePath.$dumpfile, 'r');
+                $fp = bzopen($backupAbsolutePath.$sqlFile, 'r');
                 while ($data[] = fgets($fp));
             }
             elseif($fileextension == '.gz')                  //OUTPUT_COMPRESSION_TYPE = 'gzip'
             {
-                $data = gzfile($backupAbsolutePath.$dumpfile);
+                // die Verwendung von $data = gzfile($backupAbsolutePath.$sqlFile);
+                // führt zu einem Fehler beim anschließenden Ausführen von $mysqli->query
+                // irgendwie können die einzelnen Segmente der dekomprimierten Datei
+                // über den Befehl $templine .= $line; nicht richtig zusammengesetzt werden
+                // über den Umweg einer temporären Datei funktioniert es
+                uncompress($backupAbsolutePath.$sqlFile, 'backup_tmp_sql.txt');
+                $data = file('backup_tmp_sql.txt');
+                unlink('backup_tmp_sql.txt');
             }
             else                                            //OUTPUT_COMPRESSION_TYPE = none = pure sql
             {
-                $data = file($backupAbsolutePath.$dumpfile);
+                $data = file($backupAbsolutePath.$sqlFile);
             }
-
+            
             // Temporary variable, used to store current query
             $templine = '';
+            $error = '';
             
             // Loop through each line
             foreach ($data as $line)
@@ -406,14 +430,27 @@ if ($getSource === 'sql' || $getSource === 'sql_web' || isset($_POST['SelectedBa
                 
                 // If it has a semicolon at the end, it's the end of the query
                 if (substr(trim($line), -1, 1) == ';')
-                {
+                {                   
                     // Perform the query
-                    $mysqli->query($templine) or print('Error performing query "' . $templine . '":' . $mysqli->error . PHP_EOL);
+                    if(!$mysqli->query($templine))
+                    {
+                        $error .= 'Error performing query "<b>' . $templine . '</b>": ' . $mysqli->error .  PHP_EOL;
+                    }
+                    
                     // Reset temp variable to empty
                     $templine = '';
                 }
             }
-            echo 'The SQL file was imported successfully.';
+            
+            if ($error == '')
+            {
+                echo 'The SQL file was imported successfully.';
+            }
+            else
+            {
+                echo '<br />ERROR<br /><br />'.$error;
+                exit;
+            }
         }
         else
         {
@@ -456,4 +493,31 @@ function checkVariableIsValid(array $array, $variableName, array $validValues)
         }
     }
     return $value;
+}
+
+//aus dem Internet
+function compress( $srcFileName, $dstFileName )
+{
+    // getting file content
+    $fp = fopen( $srcFileName, "r" );
+    $data = fread ( $fp, filesize( $srcFileName ) );
+    fclose( $fp );
+    
+    // writing compressed file
+    $zp = gzopen( $dstFileName, "w9" );
+    gzwrite( $zp, $data , strlen($data));
+    gzclose( $zp );
+}
+
+//aus dem Internet
+function uncompress($srcFileName, $dstFileName) 
+{
+    $sfp = gzopen($srcFileName, "rb");
+    $fp = fopen($dstFileName, "w");
+    
+    while ($string = gzread($sfp, 4096)) {
+        fwrite($fp, $string, strlen($string));
+    }
+    gzclose($sfp);
+    fclose($fp);
 }

@@ -4,10 +4,17 @@
  * Configuration file for bar
  *
  *
- * @copyright 2004-2023 rmb
+ * @copyright 2004-2024 rmb
  * @license https://www.gnu.org/licenses/gpl-2.0.html GNU General Public License v2.0 only
  ***********************************************************************************************
  */
+
+// der Name der Sicherungsdateien ( <$backupFileName>_web.zip und <$backupFileName>_db.sql )
+$backupFileName = 'backup';
+
+// die Dateien des Webspaces werden immer als ZIP archiviert
+// für SQL-Daten kann optional eine Gzip-Komprimierung aktiviert werden 
+$sqlCompression = true;     // true oder false
 
 //************************************************
 // hier sind die zu sichernden Dateien und Ordner anzugeben
@@ -24,5 +31,4 @@ $whitelistFile = array( 'index.php');
 // zu zippende bzw. wiederherzustellende Ordner
 $whitelistDir = array('adm_my_files', 'adm_plugins', 'adm_program', 'adm_themes');
 
-// der Name der Sicherungsdateien ( <$backupFileName>_web.zip und <$backupFileName>_db.sql )
-$backupFileName = 'backup';
+

@@ -1,3 +1,4 @@
 # Backup files may not be committed
 *_web.zip
 *_db.sql
+*_db.sql.gz
