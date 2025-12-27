@@ -23,5 +23,5 @@ Example:
 ## Backup files
 
 The created backup files are saved in the folder of BAR.
-By default these are backup_db.sql and backup_web.zip.
+By default these are backup_db.sql.gzip and backup_web.zip.
 

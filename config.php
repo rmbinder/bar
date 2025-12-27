@@ -3,18 +3,13 @@
  ***********************************************************************************************
  * Configuration file for bar
  *
- *
- * @copyright 2004-2024 rmb
+ * @copyright rmb
  * @license https://www.gnu.org/licenses/gpl-2.0.html GNU General Public License v2.0 only
  ***********************************************************************************************
  */
 
 // der Name der Sicherungsdateien ( <$backupFileName>_web.zip und <$backupFileName>_db.sql )
 $backupFileName = 'backup';
-
-// die Dateien des Webspaces werden immer als ZIP archiviert
-// für SQL-Daten kann optional eine Gzip-Komprimierung aktiviert werden 
-$sqlCompression = true;     // true oder false
 
 //************************************************
 // hier sind die zu sichernden Dateien und Ordner anzugeben
@@ -29,6 +24,11 @@ $sqlCompression = true;     // true oder false
 $whitelistFile = array( 'index.php');
 
 // zu zippende bzw. wiederherzustellende Ordner
-$whitelistDir = array('adm_my_files', 'adm_plugins', 'adm_program', 'adm_themes');
+$whitelistDir = array('adm_my_files', 'adm_plugins', 'install', 'languages', 'libs', 'modules', 'rss', 'src', 'system', 'vendor', 'themes');
+
+// ab Admidio 5 werden durch Admidio erstellte Backup-Dateien nicht mehr auf dem Server im Ordner adm_my_files/backup gespeichert,
+// sondern sofort heruntergeladen und lokal auf dem PC gespeichert 
+// um diese Backup-Dateien wiederherzustellen, müssen sie sich in nachfolgendem Ordner befinden:
+$admidioDumpFileDir = 'C:/ADMIDIO-BACKUPS/';
 
 
