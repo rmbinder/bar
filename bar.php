@@ -5,13 +5,14 @@
  * 
  * (b)ackup (a)nd (r)estore
  * 
- * Bar is a program for Admidio, but not a classic plugin. It backs up and restores an Admidio SQL database and its associated web space.
+ * Bar is a program for Admidio and Joomla, but not a classic plugin. It backs up and restores an Admidio/Joomla SQL database and its associated web space.
  *
- * Version: 2.0
+ * Version: 3.0 Beta 1 
  *
- * Date: 27.12.2025
+ * Date: 11.07.2026
  *
  * Compatible with Admidio version 5.0
+ * Compatible with Joomla version >= 4
  * 
  * Bar must be in a subfolder of root (on the same level as e.g. adm_plugins). The folder name can be freely selected.
  * 
@@ -43,10 +44,62 @@
  * @copyright rmb
  * @license https://www.gnu.org/licenses/gpl-2.0.html GNU General Public License v2.0 only
  ***********************************************************************************************
-*/
-
+ */
 include_once ('config.php');
-include_once (__DIR__ . '/../adm_my_files/config.php'); // die Admidio Konfigurationsdatei einlesen
+
+// die zu sichernden, bzw. zu löschenden Dateien und Ordner bestimmen
+$whitelistFile = array();
+$whitelistDir = array();
+
+$verzeichnis = __DIR__ . '/..';
+
+$eintraege = array_diff(scandir($verzeichnis, SCANDIR_SORT_ASCENDING), [
+    ".",
+    ".."
+]);
+
+$dateien = [];
+$ordner = [];
+
+foreach ($eintraege as $eintrag) {
+    $pfad = $verzeichnis . '/' . $eintrag;
+
+    if (is_file($pfad)) {
+        $dateien[] = $eintrag;
+    } elseif (is_dir($pfad)) {
+        if ($pfad != $verzeichnis . '/bar') {
+            $ordner[] = $eintrag;
+        }
+    }
+}
+
+$whitelistFile = array_diff($dateien, $blacklistFile);
+$whitelistDir = array_diff($ordner, $blacklistDir);
+
+// in $whitelistFile und $whitelistDir sind jetzt alle zu sichernden Dateien und Ordner
+sort($whitelistFile);
+sort($whitelistDir);
+
+if (file_exists(__DIR__ . '/../adm_my_files/config.php')) {
+    include_once (__DIR__ . '/../adm_my_files/config.php'); // die Admidio Konfigurationsdatei einlesen
+
+    $srv = $g_adm_srv;
+    $db = $g_adm_db;
+    $usr = $g_adm_usr;
+    $pw = $g_adm_pw;
+    $praefix = $g_tbl_praefix;
+} elseif (file_exists(__DIR__ . '/../configuration.php')) {
+    include_once (__DIR__ . '/../configuration.php'); // die Joomla Konfigurationsdatei einlesen
+
+    $config = new JConfig();
+
+    $srv = $config->host;
+    $db = $config->db;
+    $usr = $config->user;
+    $pw = $config->password;
+    $praefix = $config->dbprefix;
+}
+
 include_once (__DIR__ . '/mysqldump-php-2.10/src/Ifsnop/Mysqldump/Mysqldump.php');
 
 ini_set('max_execution_time', 600);
@@ -65,9 +118,9 @@ $getSource = checkVariableIsValid($_GET, 'source', array(
 ));
 
 echo '<h4>bar</h4>';
-echo '(b)ackup (a)nd (r)estore - v2.0';
+echo '(b)ackup (a)nd (r)estore - v3.0';
 echo '<br><br>';
-echo 'bar backs up and restores an Admidio SQL database and its associated web space';
+echo 'bar backs up and restores an Admidio or Joomla SQL database and its associated web space';
 echo '<br><br>';
 echo '*****************************************************************';
 echo '<br>';
@@ -294,7 +347,7 @@ if ($getSource === 'sql' || $getSource === 'sql_web' || isset($_POST['SelectedBa
         $dumpSettings = array(
             'compress' => Ifsnop\Mysqldump\Mysqldump::GZIP
         );
-        $dump = new Ifsnop\Mysqldump\Mysqldump("mysql:host=$g_adm_srv;dbname=$g_adm_db", $g_adm_usr, $g_adm_pw, $dumpSettings);
+        $dump = new Ifsnop\Mysqldump\Mysqldump("mysql:host=$srv;dbname=$db", $usr, $pw, $dumpSettings);
 
         $dump->start($dumpFile);
 
@@ -305,7 +358,7 @@ if ($getSource === 'sql' || $getSource === 'sql_web' || isset($_POST['SelectedBa
             error_reporting(E_ALL);
 
             // Connect to MySQL server
-            $mysqli = new mysqli($g_adm_srv, $g_adm_usr, $g_adm_pw, $g_adm_db);
+            $mysqli = new mysqli($srv, $usr, $pw, $db);
 
             if ($mysqli->connect_error) {
                 die('Error connecting to MySQL server: (' . $mysqli->connect_errno . ')' . $mysqli->connect_error);
@@ -313,8 +366,8 @@ if ($getSource === 'sql' || $getSource === 'sql_web' || isset($_POST['SelectedBa
 
             $sql = 'SELECT table_name
                       FROM information_schema.tables
-                     WHERE table_schema = \'' . $g_adm_db . '\'
-                       AND table_name LIKE \'' . $g_tbl_praefix . '_%\' ';
+                     WHERE table_schema = \'' . $db . '\'
+                       AND table_name LIKE \'' . $praefix . '_%\' ';
             $result = $mysqli->query($sql);
 
             $tables = array();
