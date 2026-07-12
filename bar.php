@@ -7,9 +7,9 @@
  * 
  * Bar is a program for Admidio and Joomla, but not a classic plugin. It backs up and restores an Admidio/Joomla SQL database and its associated web space.
  *
- * Version: 3.0 Beta 1 
+ * Version: 3.0
  *
- * Date: 11.07.2026
+ * Date: 12.07.2026
  *
  * Compatible with Admidio version 5.0
  * Compatible with Joomla version >= 4
