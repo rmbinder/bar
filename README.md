@@ -2,7 +2,7 @@
 
 (b)ackup (a)nd (r)estore
 
-bar is a program for Admidio, but not a classic plugin. It backs up and restores an Admidio SQL database and its associated web space.
+bar is a program for Admidio, but not a classic plugin. It backs up and restores an Admidio or Joomla SQL database and its associated web space.
 
 ## Installation
 
